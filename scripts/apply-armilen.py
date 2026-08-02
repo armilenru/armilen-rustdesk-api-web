@@ -81,6 +81,50 @@ def apply_favicons() -> int:
     return changed
 
 
+# Страницы серверных настроек: апстрим показывает в заголовке сырое имя опции
+# (ALWAYS_USE_RELAY), а человеку нужно название и объяснение, что опция делает.
+# Прежний форк правил ровно эти пять карточек, и без них панель теряет
+# пояснения, которые у вас уже были.
+SETTINGS_CARDS = {
+    "always_use_relay": "ALWAYS_USE_RELAY",
+    "blacklist": "BLACK_LIST",
+    "blocklist": "BLOCK_LIST",
+    "must_login": "MUST_LOGIN",
+    "relay_servers": "RELAY_SERVERS",
+}
+
+
+def apply_settings_headers() -> int:
+    changed = 0
+    for filename, raw_name in SETTINGS_CARDS.items():
+        path = ROOT / "src/views/rustdesk" / f"{filename}.vue"
+        html = path.read_text(encoding="utf-8")
+        key = "".join(part.capitalize() for part in filename.split("_"))
+
+        if f"T('{key}Title')" in html:
+            continue
+        if f"<span>{raw_name}</span>" not in html:
+            print(f"ОШИБКА: в {path.name} нет <span>{raw_name}</span>, апстрим изменил "
+                  f"разметку, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+
+        html = html.replace(
+            f"<span>{raw_name}</span>",
+            f"<span>{{{{ T('{key}Title') }}}}</span>",
+        ).replace(
+            "    <el-form :disabled=\"!canSend\">",
+            f"    <p class=\"armilen-card-desc\">{{{{ T('{key}Desc') }}}}</p>\n"
+            "    <el-form :disabled=\"!canSend\">",
+            1,
+        )
+        path.write_text(html, encoding="utf-8")
+        changed += 1
+
+    print(f"заголовки настроек: {changed} карточ(ек) обновлено из {len(SETTINGS_CARDS)}")
+    return changed
+
+
 if __name__ == "__main__":
-    total = apply_translations() + apply_title() + apply_favicons()
+    total = (apply_translations() + apply_title() + apply_favicons()
+             + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")
