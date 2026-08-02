@@ -1,0 +1,73 @@
+name: Сборка админки Armilen
+
+# Форк отстаёт от апстрима ровно на один скрипт правок, поэтому пересборка
+# нужна на каждое обновление апстрима, а не по коммитам в форк. Раз в неделю
+# перед понедельничным таймером обновления API на VPS, плюс вручную.
+on:
+  push:
+    branches: [master]
+  schedule:
+    # Воскресенье 22:00 UTC: армиленовский armilen-rustdesk-api-update.timer
+    # ходит по понедельникам, артефакт к тому моменту уже готов
+    - cron: "0 22 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Апстрим подтягивается в саму сборку, а не живёт слитым в ветку:
+      # так расхождение форка остаётся ровно одним скриптом правок, и
+      # конфликтовать при синхронизации нечему
+      - name: Подтянуть апстрим
+        run: |
+          git remote add upstream https://github.com/lejianwen/rustdesk-api-web.git || true
+          git fetch upstream master
+          git -c user.email=ci@armilen.ru -c user.name=armilen-ci merge --no-edit upstream/master
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Наложить правки Armilen
+        run: python3 scripts/apply-armilen.py
+
+      # Проверка до сборки: если апстрим переименовал ключ, который мы
+      # переформулировали, наш вариант молча пропадёт из интерфейса
+      - name: Проверить, что правки на месте
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          ru = json.load(open("src/utils/i18n/ru.json", encoding="utf-8"))
+          overlay = json.load(open("i18n/ru-armilen.json", encoding="utf-8"))
+          bad = [k for k, v in overlay.items() if ru.get(k) != {"One": v}]
+          if bad:
+              print("не применились ключи:", bad, file=sys.stderr)
+              sys.exit(1)
+          print(f"все {len(overlay)} ключ(ей) на месте, всего в ru.json {len(ru)}")
+          PY
+
+      - run: npm run build
+
+      - name: Собрать артефакт для VPS
+        run: tar -C dist -czf armilen-admin-dist.tgz .
+
+      # Тот же способ доставки, что у rustdesk-api: VPS скачивает ассет
+      # последнего релиза, а не собирает Vue у себя на проде
+      - name: Опубликовать релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: admin-${{ github.run_number }}
+          name: Админка Armilen ${{ github.run_number }}
+          files: armilen-admin-dist.tgz
+          generate_release_notes: false

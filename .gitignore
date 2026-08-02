@@ -17,3 +17,9 @@ yarn-error.log*
 *.local
 
 yarn.lock
+
+# Результат scripts/apply-armilen.py: форк расходится с апстримом только
+# скриптом правок, а не правлеными файлами
+/public/favicon.svg
+/public/favicon-hidden.svg
+armilen-admin-dist.tgz
