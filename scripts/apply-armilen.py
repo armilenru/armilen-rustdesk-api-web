@@ -23,6 +23,7 @@ RU = ROOT / "src/utils/i18n/ru.json"
 OVERLAY = ROOT / "i18n/ru-armilen.json"
 INDEX = ROOT / "index.html"
 LOGIN = ROOT / "src/views/login/login.vue"
+AUTH = ROOT / "src/utils/auth.js"
 VIEWS = ROOT / "src/views"
 
 TITLE = "Armilen"
@@ -147,8 +148,37 @@ def apply_favicons() -> int:
     return changed
 
 
-UPSTREAM_LOGIN_LOGO = 'src="@/assets/logo.png"'
-ARMILEN_LOGIN_LOGO = 'src="@/assets/logo-light.png"'
+UPSTREAM_SET_TOKEN = """export function setToken (token) {
+  localStorage.setItem(`wc-option:local:access_token`, token)
+  return localStorage.setItem(TokenKey, token)
+}
+
+export function removeToken () {
+  return localStorage.removeItem(TokenKey)
+}"""
+ARMILEN_SET_TOKEN = """// Armilen: SSO поверх входа в панель. Токен кладётся ещё и в куку на домен
+// второго уровня, потому что им закрыты страницы за пределами desk.armilen.ru:
+// /services/cms/manage-reviews и /x-project/logs на www.armilen.ru проверяют
+// её сами, а /webclient и /desk-guide через forward_auth Caddy на
+// server/sso-verify.ts. localStorage сюда не годится, он раздельный на каждый
+// домен, и без куки страницы отбрасывают обратно на этот вход по кругу.
+const ArmilenCookie = 'armilen_token'
+const ArmilenCookieDomain = 'armilen.ru'
+const ArmilenCookieMaxAge = 3600 * 24 * 30
+
+export function setToken (token) {
+  localStorage.setItem(`wc-option:local:access_token`, token)
+  document.cookie = `${ArmilenCookie}=${encodeURIComponent(token)}; Path=/; ` +
+    `Domain=${ArmilenCookieDomain}; Max-Age=${ArmilenCookieMaxAge}; Secure; SameSite=Lax`
+  return localStorage.setItem(TokenKey, token)
+}
+
+export function removeToken () {
+  document.cookie = `${ArmilenCookie}=; Path=/; Domain=${ArmilenCookieDomain}; Max-Age=0`
+  return localStorage.removeItem(TokenKey)
+}"""
+
+UPSTREAM_LOGIN_LOGO = '      <img src="@/assets/logo.png" alt="logo" class="login-logo"/>\n'
 
 
 def apply_logo() -> int:
@@ -159,34 +189,53 @@ def apply_logo() -> int:
     сборки, а не настройка сервера: подменить его на VPS нечем, только здесь.
     Глиф тот же, что у сайта, из public/favicon.svg, с прозрачным фоном.
 
-    Вариантов два, потому что поверхности разной светлоты: шапка панели
-    светлая, карточка входа тёмная. Один PNG не умеет отвечать на фон, а
-    медиазапрос внутри SVG отвечал бы на тему системы, а не на подложку, и на
-    светлой шапке в тёмной теме ОС глиф пропал бы ровно так же. Поэтому у
-    входа своя картинка со светлым промптом, курсор в обеих фирменный зелёный.
+    Со страницы входа логотип убран совсем. Карточка входа тёмная, и глиф на
+    ней требовал второго файла со светлым промптом: одна картинка на две
+    подложки не работает, а медиазапрос внутри SVG отвечает на тему системы,
+    а не на цвет подложки. Держать два начертания ради украшения формы из двух
+    полей не стоит, название продукта на вкладке и так на месте.
     """
     changed = 0
-    for name in ("logo.png", "logo-light.png"):
-        src, dst = ROOT / "branding" / name, ROOT / "src/assets" / name
-        if not src.exists():
-            print(f"ОШИБКА: нет {src}", file=sys.stderr)
-            raise SystemExit(1)
-        if not dst.exists() or dst.read_bytes() != src.read_bytes():
-            dst.write_bytes(src.read_bytes())
-            changed += 1
+    src, dst = ROOT / "branding/logo.png", ROOT / "src/assets/logo.png"
+    if not src.exists():
+        print(f"ОШИБКА: нет {src}", file=sys.stderr)
+        raise SystemExit(1)
+    if not dst.exists() or dst.read_bytes() != src.read_bytes():
+        dst.write_bytes(src.read_bytes())
+        changed += 1
 
     login = LOGIN.read_text(encoding="utf-8")
-    if ARMILEN_LOGIN_LOGO not in login:
-        if UPSTREAM_LOGIN_LOGO not in login:
-            print(f"ОШИБКА: в login.vue нет {UPSTREAM_LOGIN_LOGO}, апстрим изменил "
-                  f"разметку, скрипт надо обновить", file=sys.stderr)
-            raise SystemExit(1)
-        LOGIN.write_text(login.replace(UPSTREAM_LOGIN_LOGO, ARMILEN_LOGIN_LOGO),
-                         encoding="utf-8")
+    if UPSTREAM_LOGIN_LOGO in login:
+        LOGIN.write_text(login.replace(UPSTREAM_LOGIN_LOGO, ""), encoding="utf-8")
         changed += 1
+    elif "login-logo" in login.split("<script")[0]:
+        print("ОШИБКА: в login.vue логотип есть, но разметка не та, апстрим её "
+              "изменил, скрипт надо обновить", file=sys.stderr)
+        raise SystemExit(1)
 
     print(f"логотип: {changed} изменени(й)" if changed else "логотип: уже наш")
     return changed
+
+
+def apply_sso_cookie() -> int:
+    """Кука armilen_token на домен второго уровня при входе в панель.
+
+    Это была правка прежнего форка, и при переходе на тонкий форк она молча
+    потерялась: в новых сборках admin-1…admin-6 куку не ставит никто. Внешне
+    это выглядит как «вход проходит, а внутрь не пускает»: страница проверяет
+    куку, не находит и отправляет обратно на вход, по кругу.
+    """
+    src = AUTH.read_text(encoding="utf-8")
+    if "ArmilenCookie" in src:
+        print("SSO-кука: уже наша")
+        return 0
+    if UPSTREAM_SET_TOKEN not in src:
+        print("ОШИБКА: в utils/auth.js нет ожидаемых setToken/removeToken, "
+              "апстрим изменил код, скрипт надо обновить", file=sys.stderr)
+        raise SystemExit(1)
+    AUTH.write_text(src.replace(UPSTREAM_SET_TOKEN, ARMILEN_SET_TOKEN), encoding="utf-8")
+    print("SSO-кука: добавлена")
+    return 1
 
 
 def apply_login_redirect() -> int:
@@ -292,6 +341,7 @@ def apply_settings_headers() -> int:
 
 if __name__ == "__main__":
     total = (apply_translations() + apply_title() + apply_favicon_link()
-             + apply_favicons() + apply_logo() + apply_login_redirect()
-             + apply_form_labels() + apply_settings_headers())
+             + apply_favicons() + apply_logo() + apply_sso_cookie()
+             + apply_login_redirect() + apply_form_labels()
+             + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")
