@@ -183,12 +183,14 @@ APP_STORE = ROOT / "src/store/app.js"
 UPSTREAM_DEFAULT_LANG = (
     "const defaultLang = localStorage.getItem('lang') || navigator.language || 'zh-CN'"
 )
-ARMILEN_DEFAULT_LANG = """// Armilen: панель русская, и язык выбирается устойчиво к региональным тегам.
-// Апстрим подставлял navigator.language как есть, а браузер отдаёт ru-RU или
-// en-US, чего в langs нет. Словарь не находился, T() возвращал сам ключ, и
-// страница входа писала Username и Password вместо подписей. Запасной язык
-// тоже наш, а не китайский. Сохранённое в localStorage значение проверяется:
-// туда мог попасть тот же региональный тег и закрепить поломку насовсем.
+ARMILEN_DEFAULT_LANG = """// Armilen: панель русская по умолчанию, язык браузера на неё не влияет.
+// Апстрим брал navigator.language, и это ломалось дважды. Браузер отдаёт
+// региональный тег (ru-RU, en-US), которого в langs нет: словарь не находился,
+// T() возвращал сам ключ, и страница входа писала Username и Password вместо
+// подписей. А там, где тег совпадал, панель уходила в английский, хотя всё её
+// наполнение (приветствие, заголовки, перевод) русское. Выбор человека из
+// переключателя языков уважается: он лежит в localStorage и проверяется на
+// принадлежность словарю, туда мог попасть тот же региональный тег.
 const pickLang = (tag) => {
   if (langs[tag]) return tag
   const base = String(tag || '').split('-')[0]
@@ -196,7 +198,7 @@ const pickLang = (tag) => {
   if (base === 'zh') return 'zh-CN'
   return 'ru'
 }
-const defaultLang = pickLang(localStorage.getItem('lang') || navigator.language)"""
+const defaultLang = pickLang(localStorage.getItem('lang') || 'ru')"""
 
 UPSTREAM_LOGIN_LOGO = 'src="@/assets/logo.png"'
 ARMILEN_LOGIN_LOGO = 'src="@/assets/logo-light.png"'
