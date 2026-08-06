@@ -24,6 +24,7 @@ OVERLAY = ROOT / "i18n/ru-armilen.json"
 INDEX = ROOT / "index.html"
 LOGIN = ROOT / "src/views/login/login.vue"
 AUTH = ROOT / "src/utils/auth.js"
+HEADER = ROOT / "src/layout/components/header.vue"
 VIEWS = ROOT / "src/views"
 
 TITLE = "Armilen"
@@ -178,7 +179,9 @@ export function removeToken () {
   return localStorage.removeItem(TokenKey)
 }"""
 
-UPSTREAM_LOGIN_LOGO = '      <img src="@/assets/logo.png" alt="logo" class="login-logo"/>\n'
+UPSTREAM_LOGIN_LOGO = 'src="@/assets/logo.png"'
+ARMILEN_LOGIN_LOGO = 'src="@/assets/logo-light.png"'
+UPSTREAM_HEADER_LOGO = '    <img :src="setting.logo" alt="" class="logo">\n'
 
 
 def apply_logo() -> int:
@@ -189,14 +192,16 @@ def apply_logo() -> int:
     сборки, а не настройка сервера: подменить его на VPS нечем, только здесь.
     Глиф тот же, что у сайта, из public/favicon.svg, с прозрачным фоном.
 
-    Со страницы входа логотип убран совсем. Карточка входа тёмная, и глиф на
-    ней требовал второго файла со светлым промптом: одна картинка на две
-    подложки не работает, а медиазапрос внутри SVG отвечает на тему системы,
-    а не на цвет подложки. Держать два начертания ради украшения формы из двух
-    полей не стоит, название продукта на вкладке и так на месте.
+    Логотип стоит только на странице входа. В шапке панели он убран: рядом с
+    ним там название продукта тем же смыслом, а глиф в 30px на светлой полосе
+    работал плашкой, а не знаком.
+
+    Начертание для входа отдельное, светлое: карточка входа тёмная. Одна
+    картинка на две подложки не работает, а медиазапрос внутри SVG отвечал бы
+    на тему системы, а не на цвет подложки.
     """
     changed = 0
-    src, dst = ROOT / "branding/logo.png", ROOT / "src/assets/logo.png"
+    src, dst = ROOT / "branding/logo-light.png", ROOT / "src/assets/logo-light.png"
     if not src.exists():
         print(f"ОШИБКА: нет {src}", file=sys.stderr)
         raise SystemExit(1)
@@ -205,11 +210,21 @@ def apply_logo() -> int:
         changed += 1
 
     login = LOGIN.read_text(encoding="utf-8")
-    if UPSTREAM_LOGIN_LOGO in login:
-        LOGIN.write_text(login.replace(UPSTREAM_LOGIN_LOGO, ""), encoding="utf-8")
+    if ARMILEN_LOGIN_LOGO not in login:
+        if UPSTREAM_LOGIN_LOGO not in login:
+            print(f"ОШИБКА: в login.vue нет {UPSTREAM_LOGIN_LOGO}, апстрим изменил "
+                  f"разметку, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        LOGIN.write_text(login.replace(UPSTREAM_LOGIN_LOGO, ARMILEN_LOGIN_LOGO),
+                         encoding="utf-8")
         changed += 1
-    elif "login-logo" in login.split("<script")[0]:
-        print("ОШИБКА: в login.vue логотип есть, но разметка не та, апстрим её "
+
+    header = HEADER.read_text(encoding="utf-8")
+    if UPSTREAM_HEADER_LOGO in header:
+        HEADER.write_text(header.replace(UPSTREAM_HEADER_LOGO, ""), encoding="utf-8")
+        changed += 1
+    elif "setting.logo" in header:
+        print("ОШИБКА: в header.vue логотип есть, но разметка не та, апстрим её "
               "изменил, скрипт надо обновить", file=sys.stderr)
         raise SystemExit(1)
 
