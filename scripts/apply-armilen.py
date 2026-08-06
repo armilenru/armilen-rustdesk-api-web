@@ -14,6 +14,7 @@
 Запуск идемпотентен: повторный прогон ничего не меняет и выходит с нулём.
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -21,6 +22,8 @@ ROOT = Path(__file__).resolve().parent.parent
 RU = ROOT / "src/utils/i18n/ru.json"
 OVERLAY = ROOT / "i18n/ru-armilen.json"
 INDEX = ROOT / "index.html"
+LOGIN = ROOT / "src/views/login/login.vue"
+VIEWS = ROOT / "src/views"
 
 TITLE = "Armilen"
 UPSTREAM_TITLE = "Rustdesk API Admin"
@@ -40,6 +43,31 @@ ARMILEN_ICON = """<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         });
       })();
     </script>"""
+
+
+UPSTREAM_PUSH = "router.push({ path: redirect || '/', replace: true })"
+UPSTREAM_REDIRECT_ANCHOR = "  const redirect = route.query?.redirect\n"
+ARMILEN_REDIRECT = """  const redirect = route.query?.redirect
+  // Armilen: наш сайт присылает в redirect абсолютный адрес возврата
+  // (https://www.armilen.ru/...), а router.push принимает его за внутренний
+  // путь, не находит и роняет на /404. Внешний адрес отдаём браузеру, но
+  // только на наши домены: чужой хост в query иначе превращает страницу
+  // входа в открытый редирект.
+  const goAfterLogin = () => {
+    if (typeof redirect === 'string' && /^https?:\\/\\//i.test(redirect)) {
+      try {
+        const url = new URL(redirect)
+        if (url.protocol === 'https:' && /(^|\\.)armilen\\.ru$/i.test(url.hostname)) {
+          window.location.replace(url.href)
+          return
+        }
+      } catch (e) {
+        // адрес не разобрался, уходим на главную панели
+      }
+    }
+    router.push({ path: redirect || '/', replace: true })
+  }
+"""
 
 
 def load(path: Path) -> dict:
@@ -119,6 +147,106 @@ def apply_favicons() -> int:
     return changed
 
 
+UPSTREAM_LOGIN_LOGO = 'src="@/assets/logo.png"'
+ARMILEN_LOGIN_LOGO = 'src="@/assets/logo-light.png"'
+
+
+def apply_logo() -> int:
+    """Логотип в шапке панели и на странице входа.
+
+    Апстрим импортирует его как модуль (`import logo from '@/assets/logo.png'`
+    в store/app.js, плюс прямая ссылка в login.vue), то есть логотип это файл
+    сборки, а не настройка сервера: подменить его на VPS нечем, только здесь.
+    Глиф тот же, что у сайта, из public/favicon.svg, с прозрачным фоном.
+
+    Вариантов два, потому что поверхности разной светлоты: шапка панели
+    светлая, карточка входа тёмная. Один PNG не умеет отвечать на фон, а
+    медиазапрос внутри SVG отвечал бы на тему системы, а не на подложку, и на
+    светлой шапке в тёмной теме ОС глиф пропал бы ровно так же. Поэтому у
+    входа своя картинка со светлым промптом, курсор в обеих фирменный зелёный.
+    """
+    changed = 0
+    for name in ("logo.png", "logo-light.png"):
+        src, dst = ROOT / "branding" / name, ROOT / "src/assets" / name
+        if not src.exists():
+            print(f"ОШИБКА: нет {src}", file=sys.stderr)
+            raise SystemExit(1)
+        if not dst.exists() or dst.read_bytes() != src.read_bytes():
+            dst.write_bytes(src.read_bytes())
+            changed += 1
+
+    login = LOGIN.read_text(encoding="utf-8")
+    if ARMILEN_LOGIN_LOGO not in login:
+        if UPSTREAM_LOGIN_LOGO not in login:
+            print(f"ОШИБКА: в login.vue нет {UPSTREAM_LOGIN_LOGO}, апстрим изменил "
+                  f"разметку, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        LOGIN.write_text(login.replace(UPSTREAM_LOGIN_LOGO, ARMILEN_LOGIN_LOGO),
+                         encoding="utf-8")
+        changed += 1
+
+    print(f"логотип: {changed} изменени(й)" if changed else "логотип: уже наш")
+    return changed
+
+
+def apply_login_redirect() -> int:
+    """Возврат на сайт после входа вместо падения на /404.
+
+    Страницы `/services/cms/manage-reviews` и `/x-project/logs` уводят на
+    `#/login?redirect=<полный адрес>`, потому что вход в панель служит им
+    единственной проверкой прав. Апстримный router.push такой адрес не
+    разбирает и уходит в catchAll.
+    """
+    src = LOGIN.read_text(encoding="utf-8")
+    if "goAfterLogin" in src:
+        print("возврат после входа: уже наш")
+        return 0
+
+    pushes = src.count(UPSTREAM_PUSH)
+    if pushes != 2:
+        print(f"ОШИБКА: в login.vue найдено {pushes} вызовов «{UPSTREAM_PUSH}» "
+              f"вместо двух, апстрим изменил код, скрипт надо обновить", file=sys.stderr)
+        raise SystemExit(1)
+    if UPSTREAM_REDIRECT_ANCHOR not in src:
+        print("ОШИБКА: в login.vue нет объявления redirect, апстрим изменил код, "
+              "скрипт надо обновить", file=sys.stderr)
+        raise SystemExit(1)
+
+    # Сначала подменяем вызовы, потом вставляем помощник: он сам содержит
+    # строку router.push, и обратный порядок переписал бы её внутри него
+    src = src.replace(UPSTREAM_PUSH, "goAfterLogin()")
+    src = src.replace(UPSTREAM_REDIRECT_ANCHOR, ARMILEN_REDIRECT, 1)
+    LOGIN.write_text(src, encoding="utf-8")
+    print("возврат после входа: заменён")
+    return 1
+
+
+LABEL_WIDTH_RE = re.compile(r'label-width="\d+px"')
+
+
+def apply_form_labels() -> int:
+    """Подписи полей по содержимому, а не по фиксированной ширине.
+
+    Апстрим задаёт `label-width` числом под китайские подписи в два-три
+    иероглифа. Русская «Имя пользователя» в 120px не влезает и ломается
+    переносом посреди слова. `auto` это штатный режим Element Plus: он берёт
+    самую широкую подпись формы и равняет колонку по ней.
+
+    Полноширинное двоеточие `：` из китайской типографики после кириллицы
+    даёт лишний пробел перед значением, поэтому заодно меняется на обычное.
+    """
+    changed = 0
+    for path in sorted(VIEWS.rglob("*.vue")):
+        text = path.read_text(encoding="utf-8")
+        patched = LABEL_WIDTH_RE.sub('label-width="auto"', text)
+        patched = patched.replace('label-suffix="："', 'label-suffix=":"')
+        if patched != text:
+            path.write_text(patched, encoding="utf-8")
+            changed += 1
+    print(f"подписи форм: {changed} файл(ов) обновлено")
+    return changed
+
+
 # Страницы серверных настроек: апстрим показывает в заголовке сырое имя опции
 # (ALWAYS_USE_RELAY), а человеку нужно название и объяснение, что опция делает.
 # Прежний форк правил ровно эти пять карточек, и без них панель теряет
@@ -164,5 +292,6 @@ def apply_settings_headers() -> int:
 
 if __name__ == "__main__":
     total = (apply_translations() + apply_title() + apply_favicon_link()
-             + apply_favicons() + apply_settings_headers())
+             + apply_favicons() + apply_logo() + apply_login_redirect()
+             + apply_form_labels() + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")
