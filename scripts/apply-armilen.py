@@ -179,6 +179,25 @@ export function removeToken () {
   return localStorage.removeItem(TokenKey)
 }"""
 
+APP_STORE = ROOT / "src/store/app.js"
+UPSTREAM_DEFAULT_LANG = (
+    "const defaultLang = localStorage.getItem('lang') || navigator.language || 'zh-CN'"
+)
+ARMILEN_DEFAULT_LANG = """// Armilen: панель русская, и язык выбирается устойчиво к региональным тегам.
+// Апстрим подставлял navigator.language как есть, а браузер отдаёт ru-RU или
+// en-US, чего в langs нет. Словарь не находился, T() возвращал сам ключ, и
+// страница входа писала Username и Password вместо подписей. Запасной язык
+// тоже наш, а не китайский. Сохранённое в localStorage значение проверяется:
+// туда мог попасть тот же региональный тег и закрепить поломку насовсем.
+const pickLang = (tag) => {
+  if (langs[tag]) return tag
+  const base = String(tag || '').split('-')[0]
+  if (langs[base]) return base
+  if (base === 'zh') return 'zh-CN'
+  return 'ru'
+}
+const defaultLang = pickLang(localStorage.getItem('lang') || navigator.language)"""
+
 UPSTREAM_LOGIN_LOGO = 'src="@/assets/logo.png"'
 ARMILEN_LOGIN_LOGO = 'src="@/assets/logo-light.png"'
 UPSTREAM_HEADER_LOGO = '    <img :src="setting.logo" alt="" class="logo">\n'
@@ -230,6 +249,22 @@ def apply_logo() -> int:
 
     print(f"логотип: {changed} изменени(й)" if changed else "логотип: уже наш")
     return changed
+
+
+def apply_default_lang() -> int:
+    """Русский язык панели без зависимости от региона в navigator.language."""
+    src = APP_STORE.read_text(encoding="utf-8")
+    if "pickLang" in src:
+        print("язык по умолчанию: уже наш")
+        return 0
+    if UPSTREAM_DEFAULT_LANG not in src:
+        print("ОШИБКА: в store/app.js нет ожидаемой строки defaultLang, апстрим "
+              "изменил код, скрипт надо обновить", file=sys.stderr)
+        raise SystemExit(1)
+    APP_STORE.write_text(src.replace(UPSTREAM_DEFAULT_LANG, ARMILEN_DEFAULT_LANG),
+                         encoding="utf-8")
+    print("язык по умолчанию: русский")
+    return 1
 
 
 def apply_sso_cookie() -> int:
@@ -356,7 +391,8 @@ def apply_settings_headers() -> int:
 
 if __name__ == "__main__":
     total = (apply_translations() + apply_title() + apply_favicon_link()
-             + apply_favicons() + apply_logo() + apply_sso_cookie()
+             + apply_favicons() + apply_logo() + apply_default_lang()
+             + apply_sso_cookie()
              + apply_login_redirect() + apply_form_labels()
              + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")
