@@ -25,6 +25,22 @@ INDEX = ROOT / "index.html"
 TITLE = "Armilen"
 UPSTREAM_TITLE = "Rustdesk API Admin"
 
+UPSTREAM_ICON = '<link rel="icon" href="/favicon.ico" />'
+# Одна icon-ссылка и живая фавиконка ровно как на сайте (см. Layout.astro):
+# в неактивной вкладке курсор _ гаснет в цвет символа >. Путь берём из самой
+# ссылки, потому что Vite переписывает его на относительный при сборке.
+ARMILEN_ICON = """<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      (function () {
+        var link = document.querySelector('link[rel="icon"]');
+        var active = link.getAttribute("href");
+        var idle = active.replace("favicon.svg", "favicon-hidden.svg");
+        document.addEventListener("visibilitychange", function () {
+          link.setAttribute("href", document.hidden ? idle : active);
+        });
+      })();
+    </script>"""
+
 
 def load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -65,11 +81,33 @@ def apply_title() -> int:
     return 1
 
 
+def apply_favicon_link() -> int:
+    """Переводит ссылку на иконку с апстримного .ico на наш .svg.
+
+    Раньше это делал sed в deploy-rustdesk-brand.sh на сервере, и каждое
+    обновление панели откатывало правку до следующего прогона брендинга.
+    Место правки одно: артефакт релиза, из которого панель и ставится.
+    Апстримный favicon.ico остаётся в сборке, но уже наш: браузеры без
+    поддержки SVG-иконок запрашивают его по конвенции, без ссылки.
+    """
+    html = INDEX.read_text(encoding="utf-8")
+    if 'href="/favicon.svg"' in html:
+        print("ссылка на иконку: уже наша")
+        return 0
+    if UPSTREAM_ICON not in html:
+        print(f"ОШИБКА: в index.html нет {UPSTREAM_ICON}, апстрим изменил "
+              f"разметку, скрипт надо обновить", file=sys.stderr)
+        raise SystemExit(1)
+    INDEX.write_text(html.replace(UPSTREAM_ICON, ARMILEN_ICON), encoding="utf-8")
+    print("ссылка на иконку: заменена")
+    return 1
+
+
 def apply_favicons() -> int:
     src = ROOT / "branding"
     dst = ROOT / "public"
     changed = 0
-    for name in ("favicon.svg", "favicon-hidden.svg"):
+    for name in ("favicon.svg", "favicon-hidden.svg", "favicon.ico"):
         s, d = src / name, dst / name
         if not s.exists():
             print(f"ОШИБКА: нет {s}", file=sys.stderr)
@@ -125,6 +163,6 @@ def apply_settings_headers() -> int:
 
 
 if __name__ == "__main__":
-    total = (apply_translations() + apply_title() + apply_favicons()
-             + apply_settings_headers())
+    total = (apply_translations() + apply_title() + apply_favicon_link()
+             + apply_favicons() + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")

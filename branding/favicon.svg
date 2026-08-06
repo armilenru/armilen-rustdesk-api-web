@@ -1,12 +1,15 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <style>
-    /* Фирменный глиф Armilen: тёмный промпт в светлой теме, светлеет в тёмной */
     .prompt { stroke: #0f172a; }
-    .cursor { stroke: #22c55e; }
+
+    .cursor { stroke: #15803d; }
+
     @media (prefers-color-scheme: dark) {
       .prompt { stroke: #f1f5f9; }
     }
   </style>
+
   <path class="prompt" d="M120 140 L240 256 L120 372" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+
   <path class="cursor" d="M340 372 L460 372" stroke-width="72" stroke-linecap="round"/>
 </svg>
