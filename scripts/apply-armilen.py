@@ -180,6 +180,101 @@ export function removeToken () {
 }"""
 
 APP_STORE = ROOT / "src/store/app.js"
+MAIN = ROOT / "src/main.js"
+
+UPSTREAM_MAIN_ANCHOR = "import '@/styles/style.scss'\n"
+# Наш файл идёт ПОСЛЕ style.scss и после dark/css-vars.css апстрима: он
+# переопределяет их токены, а не соревнуется с ними за порядок.
+ARMILEN_MAIN = "import '@/styles/style.scss'\nimport '@/styles/armilen.css'\n"
+
+# Тема выбирается ДО отрисовки, инлайн-скриптом в <head>. Через Vue это дало бы
+# вспышку светлой темы на каждой загрузке: приложение монтируется позже первого
+# кадра. Класс `dark` на <html> понимают и Element Plus, и наш armilen.css.
+THEME_BOOTSTRAP = """
+    <script>
+      (function () {
+        var KEY = "armilen-theme";
+        function apply(theme) {
+          document.documentElement.classList.toggle("dark", theme === "dark");
+        }
+        var saved = null;
+        try { saved = localStorage.getItem(KEY); } catch (e) {}
+        apply(saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+        window.armilenToggleTheme = function () {
+          var next = document.documentElement.classList.contains("dark") ? "light" : "dark";
+          apply(next);
+          try { localStorage.setItem(KEY, next); } catch (e) {}
+        };
+      })();
+    </script>"""
+
+THEME_TOGGLE_BUTTON = (
+    '<button type="button" class="armilen-theme-toggle" onclick="armilenToggleTheme()"'
+    ' aria-label="Переключить тему" title="Переключить тему">'
+    '<svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none"'
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+    '<svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none"'
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41'
+    'M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'
+    "</svg></button>"
+)
+
+UPSTREAM_HEADER_SETTING = "  <Setting></Setting>\n"
+ARMILEN_HEADER_SETTING = f"  {THEME_TOGGLE_BUTTON}\n  <Setting></Setting>\n"
+
+UPSTREAM_LOGIN_CARD = '    <div class="login-card">\n'
+ARMILEN_LOGIN_CARD = f'    <div class="login-card">\n      {THEME_TOGGLE_BUTTON}\n'
+
+# Оформление страницы входа апстрим задаёт литералами прямо в scoped-стилях:
+# тёмно-синий фон, белые подписи, радиус 4px. Тема панели их не перебивает,
+# scoped-селектор специфичнее. Поэтому литералы заменяются на токены точечно,
+# каждый со своим якорем: так правка переживает мелкие изменения апстрима и
+# честно падает при крупных.
+LOGIN_STYLE_PATCHES = [
+    (
+        "  height: 100vh;\n  background-color: #2d3a4b;\n",
+        "  min-height: 100vh;\n  background-color: var(--armilen-surface-page);\n",
+    ),
+    (
+        "  background-color: #283342;\n  padding: 40px;\n  border-radius: 8px;\n"
+        "  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);\n",
+        "  background-color: var(--armilen-surface-card);\n  padding: 40px;\n"
+        "  border: 1px solid var(--armilen-border);\n  border-radius: 1rem;\n"
+        "  box-shadow: var(--armilen-shadow);\n",
+    ),
+    (
+        "  background-color: white;\n  border: 1px solid #ddd;\n  border-radius: 4px;\n"
+        "  color: black;\n",
+        "  background-color: var(--armilen-surface-inset);\n"
+        "  border: 1px solid var(--armilen-border);\n"
+        "  border-radius: var(--el-border-radius-base);\n"
+        "  color: var(--armilen-text-heading);\n",
+    ),
+    (
+        "  font-size: 14px;\n  color: #888;\n",
+        "  font-size: 14px;\n  color: var(--armilen-text-muted);\n",
+    ),
+    (
+        "    background-color: #ddd;\n",
+        "    background-color: var(--armilen-border);\n",
+    ),
+    (
+        "  ::v-deep(.el-form-item__label) {\n    color: #fff;\n  }\n",
+        "  ::v-deep(.el-form-item__label) {\n"
+        "    color: var(--armilen-text-secondary);\n  }\n",
+    ),
+    (
+        "      border: 1px solid rgba(255, 255, 255, 0.1);\n      background: transparent;\n",
+        "      background-color: var(--armilen-surface-inset);\n"
+        "      box-shadow: 0 0 0 1px var(--armilen-border) inset;\n",
+    ),
+    (
+        "    ::v-deep(input) {\n      color: #fff;\n    }\n",
+        "    ::v-deep(input) {\n      color: var(--armilen-text-heading);\n    }\n",
+    ),
+]
 UPSTREAM_DEFAULT_LANG = (
     "const defaultLang = localStorage.getItem('lang') || navigator.language || 'zh-CN'"
 )
@@ -200,8 +295,34 @@ const pickLang = (tag) => {
 }
 const defaultLang = pickLang(localStorage.getItem('lang') || 'ru')"""
 
-UPSTREAM_LOGIN_LOGO = 'src="@/assets/logo.png"'
-ARMILEN_LOGIN_LOGO = 'src="@/assets/logo-light.png"'
+UPSTREAM_LOGIN_LOGO = '<img src="@/assets/logo.png" alt="logo" class="login-logo"/>'
+# Две картинки вместо одной: карточка входа светлая в светлой теме и тёмная в
+# тёмной, а PNG не умеет отвечать на подложку. Показ переключает CSS по классу
+# `dark` на <html>, тем же признаком, что и вся тема
+ARMILEN_LOGIN_LOGO = (
+    '<img src="@/assets/logo.png" alt="Armilen" class="login-logo logo-day"/>\n'
+    '      <img src="@/assets/logo-light.png" alt="" aria-hidden="true"'
+    ' class="login-logo logo-night"/>'
+)
+
+# Менеджер паролей должен узнавать форму входа. Апстрим ставит полю имени
+# `type="username"`, а такого типа в HTML нет: браузер отдаёт обычный text без
+# единой подсказки, и Bitwarden предлагал вход только в поле пароля. Тип и
+# autocomplete это ровно те два признака, по которым форму опознают.
+LOGIN_AUTOCOMPLETE = [
+    (
+        '<el-input v-model="form.username" type="username" class="login-input"></el-input>',
+        '<el-input v-model="form.username" type="text" autocomplete="username"\n'
+        '                    name="username" class="login-input"></el-input>',
+    ),
+    (
+        '<el-input v-model="form.password" type="password" @keyup.enter.native="login" show-password\n'
+        '                    class="login-input"></el-input>',
+        '<el-input v-model="form.password" type="password" @keyup.enter.native="login" show-password\n'
+        '                    autocomplete="current-password" name="password"\n'
+        '                    class="login-input"></el-input>',
+    ),
+]
 UPSTREAM_HEADER_LOGO = '    <img :src="setting.logo" alt="" class="logo">\n'
 
 
@@ -222,13 +343,14 @@ def apply_logo() -> int:
     на тему системы, а не на цвет подложки.
     """
     changed = 0
-    src, dst = ROOT / "branding/logo-light.png", ROOT / "src/assets/logo-light.png"
-    if not src.exists():
-        print(f"ОШИБКА: нет {src}", file=sys.stderr)
-        raise SystemExit(1)
-    if not dst.exists() or dst.read_bytes() != src.read_bytes():
-        dst.write_bytes(src.read_bytes())
-        changed += 1
+    for name in ("logo.png", "logo-light.png"):
+        src, dst = ROOT / "branding" / name, ROOT / "src/assets" / name
+        if not src.exists():
+            print(f"ОШИБКА: нет {src}", file=sys.stderr)
+            raise SystemExit(1)
+        if not dst.exists() or dst.read_bytes() != src.read_bytes():
+            dst.write_bytes(src.read_bytes())
+            changed += 1
 
     login = LOGIN.read_text(encoding="utf-8")
     if ARMILEN_LOGIN_LOGO not in login:
@@ -253,6 +375,86 @@ def apply_logo() -> int:
     return changed
 
 
+def apply_theme() -> int:
+    """Фирменная тема панели: палитра, шрифт, скругления и переключение тем.
+
+    Перекрашиваются токены Element Plus, а не исходники компонентов: так вся
+    панель меняет вид одним файлом, и расхождение с апстримом не растёт.
+    """
+    changed = 0
+
+    src_dir = ROOT / "branding"
+    styles = ROOT / "src/styles"
+    fonts_dst = styles / "fonts"
+    fonts_dst.mkdir(parents=True, exist_ok=True)
+
+    for name in ("armilen.css",):
+        s, d = src_dir / name, styles / name
+        if not s.exists():
+            print(f"ОШИБКА: нет {s}", file=sys.stderr)
+            raise SystemExit(1)
+        if not d.exists() or d.read_bytes() != s.read_bytes():
+            d.write_bytes(s.read_bytes())
+            changed += 1
+
+    for font in sorted((src_dir / "fonts").glob("*.woff2")):
+        d = fonts_dst / font.name
+        if not d.exists() or d.read_bytes() != font.read_bytes():
+            d.write_bytes(font.read_bytes())
+            changed += 1
+
+    main = MAIN.read_text(encoding="utf-8")
+    if "armilen.css" not in main:
+        if UPSTREAM_MAIN_ANCHOR not in main:
+            print("ОШИБКА: в main.js нет импорта style.scss, апстрим изменил "
+                  "порядок импортов, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        MAIN.write_text(main.replace(UPSTREAM_MAIN_ANCHOR, ARMILEN_MAIN, 1), encoding="utf-8")
+        changed += 1
+
+    html = INDEX.read_text(encoding="utf-8")
+    if "armilenToggleTheme" not in html:
+        if "</head>" not in html:
+            print("ОШИБКА: в index.html нет </head>", file=sys.stderr)
+            raise SystemExit(1)
+        INDEX.write_text(html.replace("</head>", THEME_BOOTSTRAP + "\n  </head>", 1),
+                         encoding="utf-8")
+        changed += 1
+
+    header = HEADER.read_text(encoding="utf-8")
+    if "armilen-theme-toggle" not in header:
+        if UPSTREAM_HEADER_SETTING not in header:
+            print("ОШИБКА: в header.vue нет <Setting>, апстрим изменил разметку, "
+                  "скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        HEADER.write_text(header.replace(UPSTREAM_HEADER_SETTING, ARMILEN_HEADER_SETTING, 1),
+                          encoding="utf-8")
+        changed += 1
+
+    login = LOGIN.read_text(encoding="utf-8")
+    if "armilen-theme-toggle" not in login:
+        if UPSTREAM_LOGIN_CARD not in login:
+            print("ОШИБКА: в login.vue нет карточки входа, апстрим изменил "
+                  "разметку, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        login = login.replace(UPSTREAM_LOGIN_CARD, ARMILEN_LOGIN_CARD, 1)
+        changed += 1
+
+    if "--armilen-surface-page" not in login:
+        for old, new in LOGIN_STYLE_PATCHES:
+            if old not in login:
+                print(f"ОШИБКА: в стилях login.vue нет фрагмента {old.strip()[:48]!r}, "
+                      f"апстрим их изменил, скрипт надо обновить", file=sys.stderr)
+                raise SystemExit(1)
+            login = login.replace(old, new, 1)
+            changed += 1
+
+    LOGIN.write_text(login, encoding="utf-8")
+
+    print(f"фирменная тема: {changed} изменени(й)" if changed else "фирменная тема: уже наша")
+    return changed
+
+
 def apply_default_lang() -> int:
     """Русский язык панели без зависимости от региона в navigator.language."""
     src = APP_STORE.read_text(encoding="utf-8")
@@ -267,6 +469,25 @@ def apply_default_lang() -> int:
                          encoding="utf-8")
     print("язык по умолчанию: русский")
     return 1
+
+
+def apply_login_autocomplete() -> int:
+    """Признаки формы входа для менеджеров паролей."""
+    src = LOGIN.read_text(encoding="utf-8")
+    if 'autocomplete="username"' in src:
+        print("автозаполнение входа: уже наше")
+        return 0
+    changed = 0
+    for old, new in LOGIN_AUTOCOMPLETE:
+        if old not in src:
+            print("ОШИБКА: в login.vue нет ожидаемого поля формы входа, апстрим "
+                  "изменил разметку, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        src = src.replace(old, new, 1)
+        changed += 1
+    LOGIN.write_text(src, encoding="utf-8")
+    print(f"автозаполнение входа: {changed} пол(я) размечено")
+    return changed
 
 
 def apply_sso_cookie() -> int:
@@ -393,8 +614,8 @@ def apply_settings_headers() -> int:
 
 if __name__ == "__main__":
     total = (apply_translations() + apply_title() + apply_favicon_link()
-             + apply_favicons() + apply_logo() + apply_default_lang()
-             + apply_sso_cookie()
+             + apply_favicons() + apply_logo() + apply_theme() + apply_default_lang()
+             + apply_login_autocomplete() + apply_sso_cookie()
              + apply_login_redirect() + apply_form_labels()
              + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")

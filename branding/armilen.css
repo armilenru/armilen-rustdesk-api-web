@@ -1,0 +1,243 @@
+/*
+ * Фирменная тема Armilen поверх Element Plus.
+ *
+ * Апстримная панель синяя и с чужой типографикой, а стоит она на нашем домене
+ * рядом с сайтом. Перекрашивается не форк исходников, а токены Element Plus:
+ * компоненты читают значения из переменных, поэтому одного файла хватает на
+ * всю панель, и синхронизация с апстримом от этого не болит.
+ *
+ * Палитра и радиусы взяты из DESIGN.md сайта. Значения записаны литералами
+ * намеренно: в панели нет Tailwind, откуда их можно было бы взять токеном, а
+ * ссылаться отсюда на чужой репозиторий нельзя. При правке палитры сайта этот
+ * файл правится следом, других мест у него нет.
+ *
+ * Тема переключается классом `dark` на <html>, как на сайте. Element Plus
+ * понимает тот же класс (dark/css-vars.css уже импортирован в main.js), и обе
+ * системы переменных переключаются одним движением.
+ */
+
+@font-face {
+	font-family: "Onest";
+	src: url("./fonts/Onest-cyrillic.woff2") format("woff2-variations");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+	font-family: "Onest";
+	src: url("./fonts/Onest-latin.woff2") format("woff2-variations");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+		U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+		U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Onest";
+	src: url("./fonts/Onest-latin-ext.woff2") format("woff2-variations");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+		U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+		U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+	/* Поверхности и текст светлой темы */
+	--armilen-surface-page: #f8fafc;
+	--armilen-surface-card: #ffffff;
+	--armilen-surface-inset: #f8fafc;
+	--armilen-text-heading: #0f172a;
+	--armilen-text-body: #1e293b;
+	--armilen-text-secondary: #475569;
+	--armilen-text-muted: #64748b;
+	--armilen-border: #e2e8f0;
+	--armilen-border-input: #94a3b8;
+	--armilen-accent: #15803d;
+	--armilen-accent-hover: #166534;
+	--armilen-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+
+	/* Акцент Element Plus. Светлые ступени нужны компонентам для заливки
+	   бейджей, выделения строк таблицы и фона активного пункта меню */
+	--el-color-primary: var(--armilen-accent);
+	--el-color-primary-light-3: #22c55e;
+	--el-color-primary-light-5: #4ade80;
+	--el-color-primary-light-7: #86efac;
+	--el-color-primary-light-8: #bbf7d0;
+	--el-color-primary-light-9: #dcfce7;
+	--el-color-primary-dark-2: var(--armilen-accent-hover);
+
+	--el-bg-color: var(--armilen-surface-card);
+	--el-bg-color-page: var(--armilen-surface-page);
+	--el-bg-color-overlay: var(--armilen-surface-card);
+
+	--el-text-color-primary: var(--armilen-text-heading);
+	--el-text-color-regular: var(--armilen-text-body);
+	--el-text-color-secondary: var(--armilen-text-secondary);
+	--el-text-color-placeholder: var(--armilen-text-muted);
+
+	--el-border-color: var(--armilen-border);
+	--el-border-color-light: var(--armilen-border);
+	--el-border-color-lighter: var(--armilen-border);
+	--el-border-color-extra-light: var(--armilen-border);
+	--el-border-color-hover: var(--armilen-border-input);
+
+	--el-fill-color: var(--armilen-surface-inset);
+	--el-fill-color-light: var(--armilen-surface-inset);
+	--el-fill-color-lighter: var(--armilen-surface-inset);
+	--el-fill-color-blank: var(--armilen-surface-card);
+
+	/* Скругление по шкале сайта: контрол 36-48px берёт 12px (DESIGN.md §3).
+	   Апстримные 4px рядом с сайтом читались другой системой */
+	--el-border-radius-base: 12px;
+	--el-border-radius-small: 8px;
+	--el-border-radius-round: 20px;
+
+	--el-font-family: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--el-font-size-base: 14px;
+	--el-box-shadow-light: var(--armilen-shadow);
+}
+
+html.dark {
+	--armilen-surface-page: #020617;
+	--armilen-surface-card: #0f172a;
+	--armilen-surface-inset: #020617;
+	--armilen-text-heading: #f1f5f9;
+	--armilen-text-body: #cbd5e1;
+	--armilen-text-secondary: #94a3b8;
+	--armilen-text-muted: #94a3b8;
+	--armilen-border: #1e293b;
+	--armilen-border-input: #475569;
+	/* В тёмной теме акцент светлее: green-700 на почти чёрном фоне даёт
+	   недостаточный контраст, как и на сайте */
+	--armilen-accent: #22c55e;
+	--armilen-accent-hover: #4ade80;
+	--armilen-shadow: 0 1px 2px 0 rgb(2 6 23 / 0.4);
+
+	/* dark/css-vars.css апстрима объявляет весь набор заново под html.dark,
+	   поэтому здесь нужен и сам --el-color-primary: значение из :root тёмная
+	   тема перебивала, и кнопки возвращались к синему */
+	--el-color-primary: var(--armilen-accent);
+	--el-color-primary-light-3: #16a34a;
+	--el-color-primary-light-5: #15803d;
+	--el-color-primary-light-7: #166534;
+	--el-color-primary-light-8: #14532d;
+	--el-color-primary-light-9: #052e16;
+	--el-color-primary-dark-2: #4ade80;
+
+	--el-mask-color: rgb(2 6 23 / 0.8);
+}
+
+body {
+	font-family: var(--el-font-family);
+	background-color: var(--armilen-surface-page);
+	color: var(--armilen-text-body);
+}
+
+/* Кнопка панели по набору сайта: полужирная, скруглённая по шкале, без
+   апстримной тонкой обводки на заливке */
+.el-button {
+	font-weight: 600;
+	border-radius: var(--el-border-radius-base);
+}
+
+/* Поле ввода: фон утоплённой поверхности и наша рамка вместо тени апстрима */
+.el-input__wrapper,
+.el-textarea__inner {
+	background-color: var(--armilen-surface-inset);
+	box-shadow: 0 0 0 1px var(--armilen-border) inset;
+	border-radius: var(--el-border-radius-base);
+}
+
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+	box-shadow: 0 0 0 2px var(--armilen-accent) inset;
+}
+
+.el-card,
+.el-dialog {
+	background-color: var(--armilen-surface-card);
+	border: 1px solid var(--armilen-border);
+	border-radius: 1rem;
+	box-shadow: var(--armilen-shadow);
+}
+
+/* Переключатель тем: одна кнопка в углу шапки и на карточке входа */
+.armilen-theme-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border: 1px solid var(--armilen-border);
+	border-radius: var(--el-border-radius-base);
+	background: transparent;
+	color: var(--armilen-text-secondary);
+	cursor: pointer;
+	font-size: 16px;
+	line-height: 1;
+	transition:
+		border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+		color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.armilen-theme-toggle:hover {
+	border-color: var(--armilen-accent);
+	color: var(--armilen-accent);
+}
+
+.armilen-theme-toggle:focus-visible {
+	outline: 2px solid var(--armilen-accent);
+	outline-offset: 2px;
+}
+
+/* Значок переключателя: луна в светлой теме, солнце в тёмной. Рисуется
+   вектором, а не юникодным символом: символ зависит от шрифта системы и
+   выглядит по-разному на каждой машине */
+.armilen-theme-toggle .icon-sun {
+	display: none;
+}
+
+html.dark .armilen-theme-toggle .icon-sun {
+	display: block;
+}
+
+html.dark .armilen-theme-toggle .icon-moon {
+	display: none;
+}
+
+/* Кнопка на карточке входа стоит в её правом верхнем углу и не участвует в
+   потоке: иначе она сдвигала бы логотип с оптического центра карточки */
+.login-card {
+	position: relative;
+}
+
+.login-card .armilen-theme-toggle {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+}
+
+/* Логотип на входе парой: тёмный промпт на светлой карточке, светлый на
+   тёмной. Медиазапрос внутри SVG тут не подошёл бы, он отвечает на тему
+   системы, а карточка красится нашим классом */
+/* Селектор длиннее, чем кажется нужным: scoped-стиль апстрима компилируется в
+   `.login-logo[data-v-…]` со специфичностью (0,2,0) и перебивал короткую пару
+   классов. Здесь (0,3,1), поэтому !important не нужен */
+html:not(.dark) .login-card .login-logo.logo-night {
+	display: none;
+}
+
+html.dark .login-card .login-logo.logo-day {
+	display: none;
+}
+
+html.dark .login-card .login-logo.logo-night {
+	display: block;
+}

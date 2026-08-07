@@ -24,3 +24,5 @@ yarn.lock
 /public/favicon-hidden.svg
 armilen-admin-dist.tgz
 /src/assets/logo-light.png
+/src/styles/armilen.css
+/src/styles/fonts/
