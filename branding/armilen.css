@@ -48,6 +48,12 @@
 }
 
 :root {
+	/* Кривая плавности одна на весь проект и на сайт www.armilen.ru: быстрый
+	   старт, долгое мягкое оседание, без отскока и без симметрии. Записана
+	   токеном, а не числами, чтобы у следующего перехода не было соблазна
+	   завести свою (DESIGN.md сайта, раздел 5) */
+	--armilen-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
 	/* Поверхности и текст светлой темы */
 	--armilen-surface-page: #f8fafc;
 	--armilen-surface-card: #ffffff;
@@ -183,8 +189,8 @@ body {
 	font-size: 16px;
 	line-height: 1;
 	transition:
-		border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
-		color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+		border-color 200ms var(--armilen-ease),
+		color 200ms var(--armilen-ease);
 }
 
 .armilen-theme-toggle:hover {

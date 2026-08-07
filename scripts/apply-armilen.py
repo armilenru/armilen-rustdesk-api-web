@@ -190,21 +190,69 @@ ARMILEN_MAIN = "import '@/styles/style.scss'\nimport '@/styles/armilen.css'\n"
 # Тема выбирается ДО отрисовки, инлайн-скриптом в <head>. Через Vue это дало бы
 # вспышку светлой темы на каждой загрузке: приложение монтируется позже первого
 # кадра. Класс `dark` на <html> понимают и Element Plus, и наш armilen.css.
+#
+# Ключ хранения НЕ наш: панель переключает тему через useDark() из @vueuse/core
+# (src/layout/components/setting/index.vue), а он помнит выбор в
+# `vueuse-color-scheme` и понимает три значения, dark, light и auto. Пока
+# бутстрап держал собственный ключ `armilen-theme`, про одну и ту же тему
+# существовало два независимых мнения, и они спорили на каждой загрузке.
+# Единственный источник правды теперь панельный, бутстрап только читает его
+# раньше, чем успевает смонтироваться Vue.
+#
+# Второй кусок гасит переходы на кадр переключения. У компонентов Element Plus
+# свои длительности перехода на фоне и рамках, и при смене темы каждый блок
+# доезжал до нового цвета в своём темпе: это и читалось как моргание вразнобой.
+# Наблюдатель ловит смену класса кем угодно, и панельным переключателем, и нашим
+# на странице входа, поэтому лечит оба случая одним правилом.
 THEME_BOOTSTRAP = """
     <script>
       (function () {
-        var KEY = "armilen-theme";
-        function apply(theme) {
-          document.documentElement.classList.toggle("dark", theme === "dark");
+        var KEY = "vueuse-color-scheme";
+        var root = document.documentElement;
+
+        function prefersDark() {
+          return window.matchMedia("(prefers-color-scheme: dark)").matches;
         }
+        function isDark(saved) {
+          if (saved === "dark") return true;
+          if (saved === "light") return false;
+          return prefersDark();
+        }
+        function apply(saved) {
+          root.classList.toggle("dark", isDark(saved));
+        }
+
         var saved = null;
         try { saved = localStorage.getItem(KEY); } catch (e) {}
-        apply(saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+        apply(saved);
+
         window.armilenToggleTheme = function () {
-          var next = document.documentElement.classList.contains("dark") ? "light" : "dark";
-          apply(next);
-          try { localStorage.setItem(KEY, next); } catch (e) {}
+          var next = root.classList.contains("dark") ? "light" : "dark";
+          root.classList.toggle("dark", next === "dark");
+          try {
+            localStorage.setItem(KEY, next);
+            // Свою же запись localStorage в этой вкладке не видит никто: событие
+            // storage адресовано соседним вкладкам. Поэтому шлём его руками,
+            // иначе useDark() останется при старом мнении до перезагрузки.
+            window.dispatchEvent(new StorageEvent("storage", {
+              key: KEY, newValue: next, storageArea: localStorage
+            }));
+          } catch (e) {}
         };
+
+        var pending = null;
+        new MutationObserver(function () {
+          if (pending) return;
+          var style = document.createElement("style");
+          style.textContent = "*,*::before,*::after{transition:none!important}";
+          document.head.appendChild(style);
+          pending = requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              style.remove();
+              pending = null;
+            });
+          });
+        }).observe(root, { attributes: true, attributeFilter: ["class"] });
       })();
     </script>"""
 
@@ -221,8 +269,10 @@ THEME_TOGGLE_BUTTON = (
     "</svg></button>"
 )
 
-UPSTREAM_HEADER_SETTING = "  <Setting></Setting>\n"
-ARMILEN_HEADER_SETTING = f"  {THEME_TOGGLE_BUTTON}\n  <Setting></Setting>\n"
+# В шапке панели своего переключателя мы не ставим: там уже стоит родной,
+# el-switch на useDark() в setting/index.vue. Две иконки смены темы рядом это
+# не украшение, а вопрос «которая из них настоящая». Наша кнопка живёт только
+# на странице входа, куда шапка панели ещё не смонтирована.
 
 UPSTREAM_LOGIN_CARD = '    <div class="login-card">\n'
 ARMILEN_LOGIN_CARD = f'    <div class="login-card">\n      {THEME_TOGGLE_BUTTON}\n'
@@ -321,6 +371,17 @@ LOGIN_AUTOCOMPLETE = [
         '<el-input v-model="form.password" type="password" @keyup.enter.native="login" show-password\n'
         '                    autocomplete="current-password" name="password"\n'
         '                    class="login-input"></el-input>',
+    ),
+    # Капча оставалась единственным полем формы без токена, и это ровно тот
+    # случай, ради которого токены и ставят: короткое текстовое поле рядом с
+    # паролем менеджер вправе принять за второй пароль или за поле кода.
+    # `off` говорит прямо, что подставлять сюда нечего, значение живёт одну
+    # попытку входа.
+    (
+        '<el-input v-model="form.captcha" @keyup.enter.native="login"  class="login-input captcha-input">',
+        '<el-input v-model="form.captcha" @keyup.enter.native="login"\n'
+        '                    autocomplete="off" name="captcha"\n'
+        '                    class="login-input captcha-input">',
     ),
 ]
 UPSTREAM_HEADER_LOGO = '    <img :src="setting.logo" alt="" class="logo">\n'
@@ -421,14 +482,12 @@ def apply_theme() -> int:
                          encoding="utf-8")
         changed += 1
 
+    # Прошлые версии скрипта вставляли нашу кнопку в шапку. Если правка уже
+    # лежит в рабочем дереве, снимаем её: иначе в панели остаются два
+    # переключателя темы, наш и родной el-switch.
     header = HEADER.read_text(encoding="utf-8")
-    if "armilen-theme-toggle" not in header:
-        if UPSTREAM_HEADER_SETTING not in header:
-            print("ОШИБКА: в header.vue нет <Setting>, апстрим изменил разметку, "
-                  "скрипт надо обновить", file=sys.stderr)
-            raise SystemExit(1)
-        HEADER.write_text(header.replace(UPSTREAM_HEADER_SETTING, ARMILEN_HEADER_SETTING, 1),
-                          encoding="utf-8")
+    if "armilen-theme-toggle" in header:
+        HEADER.write_text(header.replace(f"  {THEME_TOGGLE_BUTTON}\n", "", 1), encoding="utf-8")
         changed += 1
 
     login = LOGIN.read_text(encoding="utf-8")

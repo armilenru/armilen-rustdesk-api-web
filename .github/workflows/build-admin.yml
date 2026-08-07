@@ -57,6 +57,37 @@ jobs:
           print(f"все {len(overlay)} ключ(ей) на месте, всего в ru.json {len(ru)}")
           PY
 
+      # Договор о теме и о форме входа. Ключи перевода тут сторожили с самого
+      # начала, а эти две вещи держались на памяти, и обе успели разъехаться:
+      # в шапке оказалось два переключателя темы, а поля входа остались без
+      # токенов и работали на догадке менеджера паролей
+      - name: Проверить тему и форму входа
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+          def read(p): return pathlib.Path(p).read_text(encoding="utf-8")
+          problems = []
+          if "vueuse-color-scheme" not in read("index.html"):
+              problems.append("бутстрап темы не на ключе панели vueuse-color-scheme")
+          if "transition:none!important" not in read("index.html"):
+              problems.append("нет гашения переходов на кадр смены темы")
+          if "armilen-theme-toggle" in read("src/layout/components/header.vue"):
+              problems.append("наш переключатель темы вернулся в шапку, их станет два")
+          if "armilen-theme-toggle" not in read("src/views/login/login.vue"):
+              problems.append("на странице входа пропал переключатель темы")
+          login = read("src/views/login/login.vue")
+          for token in ('autocomplete="username"', 'autocomplete="current-password"',
+                        'autocomplete="off"'):
+              if token not in login:
+                  problems.append(f"в форме входа нет {token}")
+          if 'type="username"' in login:
+              problems.append('вернулся несуществующий type="username"')
+          if problems:
+              for p in problems: print("НЕ ПРОШЛО:", p, file=sys.stderr)
+              sys.exit(1)
+          print("тема и форма входа: договор соблюдён")
+          PY
+
       - run: npm run build
 
       - name: Собрать артефакт для VPS
