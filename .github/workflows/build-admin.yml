@@ -93,12 +93,29 @@ jobs:
       - name: Собрать артефакт для VPS
         run: tar -C dist -czf armilen-admin-dist.tgz .
 
+      # Метка релиза по времени сборки, а НЕ по github.run_number.
+      #
+      # Счётчик прогонов принадлежит файлу workflow и начинается заново, если
+      # файл пересоздали. Здесь так и вышло: теги admin-9 и admin-10 остались от
+      # прежнего workflow, а нынешний досчитал только до 8. Сборка молча
+      # переписала ассет старого релиза admin-8, последним остался вчерашний
+      # admin-10, и на VPS уехала бы предыдущая панель. Ошибка тихая вдвойне:
+      # прогон зелёный, релиз есть, ассет обновлён, просто не тот.
+      #
+      # Время монотонно и от нумерации workflow не зависит, а make_latest
+      # снимает второе условие ошибки: свежая сборка становится последней
+      # независимо от того, как называются соседние теги.
+      - name: Метка релиза
+        id: tag
+        run: echo "value=admin-$(date -u +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
       # Тот же способ доставки, что у rustdesk-api: VPS скачивает ассет
       # последнего релиза, а не собирает Vue у себя на проде
       - name: Опубликовать релиз
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: admin-${{ github.run_number }}
-          name: Админка Armilen ${{ github.run_number }}
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: Админка Armilen ${{ steps.tag.outputs.value }}
           files: armilen-admin-dist.tgz
           generate_release_notes: false
+          make_latest: true
