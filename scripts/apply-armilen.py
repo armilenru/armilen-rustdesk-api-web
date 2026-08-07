@@ -23,6 +23,10 @@ RU = ROOT / "src/utils/i18n/ru.json"
 OVERLAY = ROOT / "i18n/ru-armilen.json"
 INDEX = ROOT / "index.html"
 LOGIN = ROOT / "src/views/login/login.vue"
+REGISTER = ROOT / "src/views/register/index.vue"
+# Вход и регистрация это одна оболочка: одинаковые классы, одинаковый логотип,
+# одинаковая пара литералов в фоне. Разные у них только поля формы
+AUTH_PAGES = (LOGIN, REGISTER)
 AUTH = ROOT / "src/utils/auth.js"
 HEADER = ROOT / "src/layout/components/header.vue"
 VIEWS = ROOT / "src/views"
@@ -282,7 +286,12 @@ ARMILEN_LOGIN_CARD = f'    <div class="login-card">\n      {THEME_TOGGLE_BUTTON}
 # scoped-селектор специфичнее. Поэтому литералы заменяются на токены точечно,
 # каждый со своим якорем: так правка переживает мелкие изменения апстрима и
 # честно падает при крупных.
-LOGIN_STYLE_PATCHES = [
+#
+# Первые два якоря вынесены отдельно, потому что страница регистрации это та же
+# оболочка: те же классы `.login-container` и `.login-card`, те же два литерала,
+# но собственные scoped-стили. Общее держится в одном месте, иначе достаточно
+# поправить палитру входа и забыть про регистрацию, что уже и произошло.
+AUTH_SHELL_PATCHES = [
     (
         "  height: 100vh;\n  background-color: #2d3a4b;\n",
         "  min-height: 100vh;\n  background-color: var(--armilen-surface-page);\n",
@@ -294,6 +303,9 @@ LOGIN_STYLE_PATCHES = [
         "  border: 1px solid var(--armilen-border);\n  border-radius: 1rem;\n"
         "  box-shadow: var(--armilen-shadow);\n",
     ),
+]
+
+LOGIN_STYLE_PATCHES = AUTH_SHELL_PATCHES + [
     (
         "  background-color: white;\n  border: 1px solid #ddd;\n  border-radius: 4px;\n"
         "  color: black;\n",
@@ -325,6 +337,48 @@ LOGIN_STYLE_PATCHES = [
         "    ::v-deep(input) {\n      color: var(--armilen-text-heading);\n    }\n",
     ),
 ]
+# Страницы подтверждения OAuth: вход клиента RustDesk в адресную книгу
+# (`#/oauth/:code`) и привязка стороннего аккаунта в панели
+# (`#/oauth/bind/:code`). Обе достаются человеку из клиента или из профиля,
+# минуя шапку панели, и обе апстрим красит тем же тёмно-синим литералом, что и
+# прежнюю страницу входа.
+#
+# Список один на оба файла, потому что scoped-стили у них побайтово совпадают.
+# Разойдутся в апстриме, скрипт упадёт на первом же якоре и назовёт файл.
+OAUTH_PAGES = (ROOT / "src/views/oauth/login.vue", ROOT / "src/views/oauth/bind.vue")
+
+UPSTREAM_OAUTH_CARD = '    <el-card class="card">\n'
+ARMILEN_OAUTH_CARD = f'    <el-card class="card">\n      {THEME_TOGGLE_BUTTON}\n'
+
+OAUTH_STYLE_PATCHES = [
+    # `width: 100vw` шире области просмотра ровно на ширину вертикальной полосы
+    # прокрутки, и страница получала горизонтальную прокрутку на пустом месте.
+    # `height` заменён на `min-height` по той же причине, что и на входе:
+    # карточка не должна обрезаться, когда содержимое выше экрана.
+    (
+        "  width: 100vw;\n  height: 100vh;\n  background-color: #2d3a4b;\n",
+        "  width: 100%;\n  min-height: 100vh;\n"
+        "  background-color: var(--armilen-surface-page);\n",
+    ),
+    # Карточка апстрима тёмная всегда и без рамки: на светлой теме она читалась
+    # чужеродным пятном. Радиус и тень взяты те же, что у карточки входа.
+    (
+        "    max-width: 500px;\n    background-color: #283342;\n    color: #fff;\n"
+        "    border: none;\n",
+        "    max-width: 500px;\n"
+        "    background-color: var(--armilen-surface-card);\n"
+        "    color: var(--armilen-text-heading);\n"
+        "    border: 1px solid var(--armilen-border);\n"
+        "    border-radius: 1rem;\n"
+        "    box-shadow: var(--armilen-shadow);\n",
+    ),
+    (
+        "      ::v-deep(.el-form-item__label) {\n        color: #fff;\n      }\n",
+        "      ::v-deep(.el-form-item__label) {\n"
+        "        color: var(--armilen-text-secondary);\n      }\n",
+    ),
+]
+
 UPSTREAM_DEFAULT_LANG = (
     "const defaultLang = localStorage.getItem('lang') || navigator.language || 'zh-CN'"
 )
@@ -413,14 +467,19 @@ def apply_logo() -> int:
             dst.write_bytes(src.read_bytes())
             changed += 1
 
-    login = LOGIN.read_text(encoding="utf-8")
-    if ARMILEN_LOGIN_LOGO not in login:
-        if UPSTREAM_LOGIN_LOGO not in login:
-            print(f"ОШИБКА: в login.vue нет {UPSTREAM_LOGIN_LOGO}, апстрим изменил "
-                  f"разметку, скрипт надо обновить", file=sys.stderr)
+    # Регистрация несёт тот же логотип и ту же карточку, что и вход, поэтому
+    # пара «тёмный на светлой, светлый на тёмной» нужна ей ровно так же:
+    # одиночный тёмный глиф на тёмной карточке пропадает целиком
+    for path in AUTH_PAGES:
+        src = path.read_text(encoding="utf-8")
+        if ARMILEN_LOGIN_LOGO in src:
+            continue
+        if UPSTREAM_LOGIN_LOGO not in src:
+            print(f"ОШИБКА: в {path.name} нет {UPSTREAM_LOGIN_LOGO}, апстрим "
+                  f"изменил разметку, скрипт надо обновить", file=sys.stderr)
             raise SystemExit(1)
-        LOGIN.write_text(login.replace(UPSTREAM_LOGIN_LOGO, ARMILEN_LOGIN_LOGO),
-                         encoding="utf-8")
+        path.write_text(src.replace(UPSTREAM_LOGIN_LOGO, ARMILEN_LOGIN_LOGO),
+                        encoding="utf-8")
         changed += 1
 
     header = HEADER.read_text(encoding="utf-8")
@@ -490,27 +549,74 @@ def apply_theme() -> int:
         HEADER.write_text(header.replace(f"  {THEME_TOGGLE_BUTTON}\n", "", 1), encoding="utf-8")
         changed += 1
 
-    login = LOGIN.read_text(encoding="utf-8")
-    if "armilen-theme-toggle" not in login:
-        if UPSTREAM_LOGIN_CARD not in login:
-            print("ОШИБКА: в login.vue нет карточки входа, апстрим изменил "
-                  "разметку, скрипт надо обновить", file=sys.stderr)
-            raise SystemExit(1)
-        login = login.replace(UPSTREAM_LOGIN_CARD, ARMILEN_LOGIN_CARD, 1)
-        changed += 1
+    # Вход и регистрация правятся одинаково, различаются только списком якорей:
+    # у входа есть поля, капча и подписи, у регистрации только оболочка
+    for path in AUTH_PAGES:
+        src = path.read_text(encoding="utf-8")
+        patches = LOGIN_STYLE_PATCHES if path == LOGIN else AUTH_SHELL_PATCHES
 
-    if "--armilen-surface-page" not in login:
-        for old, new in LOGIN_STYLE_PATCHES:
-            if old not in login:
-                print(f"ОШИБКА: в стилях login.vue нет фрагмента {old.strip()[:48]!r}, "
-                      f"апстрим их изменил, скрипт надо обновить", file=sys.stderr)
+        if "armilen-theme-toggle" not in src:
+            if UPSTREAM_LOGIN_CARD not in src:
+                print(f"ОШИБКА: в {path.name} нет карточки входа, апстрим изменил "
+                      f"разметку, скрипт надо обновить", file=sys.stderr)
                 raise SystemExit(1)
-            login = login.replace(old, new, 1)
+            src = src.replace(UPSTREAM_LOGIN_CARD, ARMILEN_LOGIN_CARD, 1)
             changed += 1
 
-    LOGIN.write_text(login, encoding="utf-8")
+        if "--armilen-surface-page" not in src:
+            for old, new in patches:
+                if old not in src:
+                    print(f"ОШИБКА: в стилях {path.name} нет фрагмента "
+                          f"{old.strip()[:48]!r}, апстрим их изменил, скрипт надо "
+                          f"обновить", file=sys.stderr)
+                    raise SystemExit(1)
+                src = src.replace(old, new, 1)
+                changed += 1
+
+        path.write_text(src, encoding="utf-8")
 
     print(f"фирменная тема: {changed} изменени(й)" if changed else "фирменная тема: уже наша")
+    return changed
+
+
+def apply_oauth_pages() -> int:
+    """Страницы подтверждения OAuth в фирменной теме, с переключателем.
+
+    Эти две страницы человек видит, не заходя в панель: одну открывает клиент
+    RustDesk при входе в адресную книгу, вторую профиль при привязке аккаунта.
+    Шапки панели с родным переключателем темы там нет, поэтому кнопка нужна
+    своя, как на странице входа, иначе сменить тему негде вовсе.
+
+    Проверка «уже наше» идёт по токену в стилях, а не по факту вставки кнопки:
+    кнопка и стили правятся вместе, и половинчатое состояние означало бы, что
+    апстрим сдвинул один из якорей, а это должно падать, а не молча чиниться.
+    """
+    changed = 0
+
+    for path in OAUTH_PAGES:
+        src = path.read_text(encoding="utf-8")
+        if "--armilen-surface-page" in src:
+            continue
+
+        if UPSTREAM_OAUTH_CARD not in src:
+            print(f"ОШИБКА: в {path.name} нет карточки OAuth, апстрим изменил "
+                  f"разметку, скрипт надо обновить", file=sys.stderr)
+            raise SystemExit(1)
+        src = src.replace(UPSTREAM_OAUTH_CARD, ARMILEN_OAUTH_CARD, 1)
+        changed += 1
+
+        for old, new in OAUTH_STYLE_PATCHES:
+            if old not in src:
+                print(f"ОШИБКА: в стилях {path.name} нет фрагмента "
+                      f"{old.strip()[:48]!r}, апстрим их изменил, скрипт надо "
+                      f"обновить", file=sys.stderr)
+                raise SystemExit(1)
+            src = src.replace(old, new, 1)
+            changed += 1
+
+        path.write_text(src, encoding="utf-8")
+
+    print(f"страницы OAuth: {changed} изменени(й)" if changed else "страницы OAuth: уже наши")
     return changed
 
 
@@ -673,7 +779,8 @@ def apply_settings_headers() -> int:
 
 if __name__ == "__main__":
     total = (apply_translations() + apply_title() + apply_favicon_link()
-             + apply_favicons() + apply_logo() + apply_theme() + apply_default_lang()
+             + apply_favicons() + apply_logo() + apply_theme() + apply_oauth_pages()
+             + apply_default_lang()
              + apply_login_autocomplete() + apply_sso_cookie()
              + apply_login_redirect() + apply_form_labels()
              + apply_settings_headers())

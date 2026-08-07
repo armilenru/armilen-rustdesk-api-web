@@ -73,8 +73,27 @@ jobs:
               problems.append("нет гашения переходов на кадр смены темы")
           if "armilen-theme-toggle" in read("src/layout/components/header.vue"):
               problems.append("наш переключатель темы вернулся в шапку, их станет два")
-          if "armilen-theme-toggle" not in read("src/views/login/login.vue"):
-              problems.append("на странице входа пропал переключатель темы")
+
+          # Страницы, до которых человек добирается мимо шапки панели: вход,
+          # регистрация и два подтверждения OAuth. Родного переключателя темы
+          # там нет, поэтому наш обязан быть на каждой
+          for page in ("src/views/login/login.vue", "src/views/register/index.vue",
+                       "src/views/oauth/login.vue", "src/views/oauth/bind.vue"):
+              if "armilen-theme-toggle" not in read(page):
+                  problems.append(f"на {page} пропал переключатель темы")
+
+          # Палитра апстрима сплошным поиском, а не по списку известных файлов.
+          # Список уже подводил: правку палитры получили вход и OAuth, а про
+          # регистрацию с теми же литералами никто не вспомнил, и она полгода
+          # стояла тёмно-синей. Новая страница апстрима с этой парой цветов
+          # обязана падать здесь, а не обнаруживаться на бою глазами
+          for vue in sorted(pathlib.Path("src/views").rglob("*.vue")):
+              body = read(vue)
+              for literal in ("#2d3a4b", "#283342"):
+                  if literal in body:
+                      problems.append(f"{vue}: апстримный {literal} пережил правки, "
+                                      f"страница осталась не в нашей теме")
+
           login = read("src/views/login/login.vue")
           for token in ('autocomplete="username"', 'autocomplete="current-password"',
                         'autocomplete="off"'):
