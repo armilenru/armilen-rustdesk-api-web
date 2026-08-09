@@ -68,6 +68,42 @@
 	--armilen-accent-hover: #166534;
 	--armilen-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
 
+	/* Заливка кнопки живёт отдельно от текстового акцента и НЕ меняется вместе
+	   с темой. Замерено на www.armilen.ru: у залитой CTA класс `bg-green-700`
+	   без пары `dark:`, то есть в обеих темах это один и тот же green-700, а
+	   ховер это тот же цвет под альфой 90% (`hover:bg-green-700/90`). Светлеет
+	   он на светлом фоне и темнеет на тёмном сам, потому что просвечивает
+	   страницу.
+
+	   Разводить эти два токена пришлось потому, что светлее в тёмной теме
+	   становится только акцент у текста и рамок, а не заливка. Пока токен был
+	   один, панель брала на кнопку green-500 и рядом с сайтом читалась
+	   кислотной */
+	--armilen-accent-solid: #15803d;
+	--armilen-accent-solid-hover: rgb(21 128 61 / 0.9);
+
+	/* Красный залитой кнопки по той же логике: один на обе темы. Значение
+	   снято с плашки `.notice-error` сайта (её --error-text) */
+	--armilen-danger-solid: #b31612;
+	--armilen-danger-solid-hover: rgb(179 22 18 / 0.9);
+
+	/* Палитра плашек, снятая с `.notice` сайта в обеих темах. `-text` идёт в
+	   текст и в рамку (та берёт от него 14%), `-base` только в подложку */
+	--armilen-error-text: #b31612;
+	--armilen-error-base: #fc3823;
+	--armilen-warn-text: #9d4f07;
+	--armilen-warn-base: #fe9a00;
+	--armilen-info-text: #475569;
+	--armilen-info-base: #64748b;
+
+	/* Контрол панели ростом с сайтовый: 44px это тач-минимум из DESIGN.md §3,
+	   а апстримные 32px давали поле ниже кнопки рядом с ним. Радиус при этом
+	   остаётся 12px и на 44px, и на 48px: шкала сайта отдаёт 16px только
+	   контролу от 50px */
+	--el-component-size: 44px;
+	--el-component-size-large: 48px;
+	--el-component-size-small: 40px;
+
 	/* Акцент Element Plus. Светлые ступени нужны компонентам для заливки
 	   бейджей, выделения строк таблицы и фона активного пункта меню */
 	--el-color-primary: var(--armilen-accent);
@@ -137,6 +173,16 @@ html.dark {
 	--el-color-primary-dark-2: #4ade80;
 
 	--el-mask-color: rgb(2 6 23 / 0.8);
+
+	/* Залитые кнопки цвет не меняют, здесь переобъявлять нечего: пары
+	   --armilen-accent-solid и --armilen-danger-solid специально одни на обе
+	   темы. Меняется только палитра плашек */
+	--armilen-error-text: #f0a69a;
+	--armilen-error-base: #ff6b53;
+	--armilen-warn-text: #dec459;
+	--armilen-warn-base: #ffb900;
+	--armilen-info-text: #94a3b8;
+	--armilen-info-base: #64748b;
 }
 
 body {
@@ -150,6 +196,65 @@ body {
 .el-button {
 	font-weight: 600;
 	border-radius: var(--el-border-radius-base);
+}
+
+/* Ховер залитой кнопки.
+ *
+ * Апстрим берёт на него --el-color-primary-light-3, то есть соседнюю ступень
+ * палитры, и направление у неё оказалось противоположным сайту в обеих темах
+ * сразу: в светлой кнопка на наведении светлела с green-700 до green-500, в
+ * тёмной темнела с green-500 до green-600. Замер на боевой панели: покой
+ * rgb(21,128,61) → ховер rgb(34,197,94) в светлой и rgb(34,197,94) →
+ * rgb(22,163,74) в тёмной.
+ *
+ * Сайт делает иначе и проще: тот же цвет под альфой 90%. Одна запись работает
+ * в обеих темах, потому что просвечивает страницу, и вопрос «на сколько ступе-
+ * ней светлее» не возникает вовсе.
+ *
+ * `success` красится наравне с `primary` намеренно. Апстримное различение
+ * синей главной и зелёной подтверждающей кнопки на нашей палитре вырождается в
+ * два разных зелёных рядом, и первым это поймала страница подтверждения OAuth:
+ * её главная кнопка объявлена `type="success"` и потому единственная во всей
+ * панели красилась апстримным #67c23a. */
+.el-button--primary,
+.el-button--success {
+	--el-button-bg-color: var(--armilen-accent-solid);
+	--el-button-border-color: var(--armilen-accent-solid);
+	--el-button-text-color: #ffffff;
+	--el-button-hover-bg-color: var(--armilen-accent-solid-hover);
+	--el-button-hover-border-color: var(--armilen-accent-solid-hover);
+	--el-button-hover-text-color: #ffffff;
+	--el-button-active-bg-color: var(--armilen-accent-solid-hover);
+	--el-button-active-border-color: var(--armilen-accent-solid-hover);
+	--el-button-disabled-bg-color: var(--armilen-accent-solid);
+	--el-button-disabled-border-color: var(--armilen-accent-solid);
+}
+
+.el-button--danger {
+	--el-button-bg-color: var(--armilen-danger-solid);
+	--el-button-border-color: var(--armilen-danger-solid);
+	--el-button-text-color: #ffffff;
+	--el-button-hover-bg-color: var(--armilen-danger-solid-hover);
+	--el-button-hover-border-color: var(--armilen-danger-solid-hover);
+	--el-button-hover-text-color: #ffffff;
+	--el-button-active-bg-color: var(--armilen-danger-solid-hover);
+	--el-button-active-border-color: var(--armilen-danger-solid-hover);
+	--el-button-disabled-bg-color: var(--armilen-danger-solid);
+	--el-button-disabled-border-color: var(--armilen-danger-solid);
+}
+
+/* Кнопка без заливки (`Закрыть` на подтверждении OAuth, `Изменить` в таблицах).
+   Апстрим на наведении заливает её --el-color-primary-light-9 и обводит
+   light-7, то есть двумя зелёными пятнами разной насыщенности. На сайте
+   вторичная кнопка отвечает на наведение сменой фона на нейтральную утопленную
+   поверхность, рамка при этом не двигается: ровно так же чинили #sort-toggle
+   на `/services/cms/manage-reviews` */
+.el-button--default {
+	--el-button-hover-bg-color: var(--armilen-surface-inset);
+	--el-button-hover-border-color: var(--armilen-border-input);
+	--el-button-hover-text-color: var(--armilen-text-heading);
+	--el-button-active-bg-color: var(--armilen-surface-inset);
+	--el-button-active-border-color: var(--armilen-border-input);
 }
 
 /* Поле ввода: фон утоплённой поверхности и наша рамка вместо тени апстрима */
@@ -166,11 +271,59 @@ body {
 }
 
 .el-card,
-.el-dialog {
+.el-dialog,
+.el-message-box {
 	background-color: var(--armilen-surface-card);
 	border: 1px solid var(--armilen-border);
 	border-radius: 1rem;
 	box-shadow: var(--armilen-shadow);
+}
+
+/* Всплывающее уведомление наверху страницы.
+ *
+ * Апстрим красит его плотной плашкой: у ошибки фон #fef0f0 при рамке #fde2e2,
+ * у тёмной темы вместо этого бурое rgb(43,29,29). Ни то ни другое не совпадает
+ * с сайтом, где `.notice` строится ровно наоборот: волосяная рамка и едва
+ * заметная подложка, а сплошные цветные заливки запрещены (DESIGN.md §10).
+ *
+ * Значения сняты с самого сайта в обеих темах, не подобраны на глаз.
+ *
+ * Подложка мешается с поверхностью карточки, а не с `transparent`, как на
+ * сайте. Причина в том, что плашка сайта лежит в потоке, а эта висит над
+ * содержимым: 5% краски на прозрачном пропустили бы сквозь себя текст
+ * страницы, и читаться перестали бы оба. */
+.el-message {
+	border-radius: var(--el-border-radius-base);
+	border-color: color-mix(in srgb, var(--armilen-notice-text) 14%, transparent);
+	background-color: color-mix(in srgb, var(--armilen-notice-base) 5%, var(--armilen-surface-card));
+	color: var(--armilen-notice-text);
+	box-shadow: var(--armilen-shadow);
+}
+
+.el-message .el-message__content,
+.el-message .el-message__icon,
+.el-message .el-message__closeBtn {
+	color: var(--armilen-notice-text);
+}
+
+.el-message.el-message--error {
+	--armilen-notice-text: var(--armilen-error-text);
+	--armilen-notice-base: var(--armilen-error-base);
+}
+
+.el-message.el-message--warning {
+	--armilen-notice-text: var(--armilen-warn-text);
+	--armilen-notice-base: var(--armilen-warn-base);
+}
+
+.el-message.el-message--success {
+	--armilen-notice-text: var(--armilen-accent);
+	--armilen-notice-base: var(--armilen-accent);
+}
+
+.el-message.el-message--info {
+	--armilen-notice-text: var(--armilen-info-text);
+	--armilen-notice-base: var(--armilen-info-base);
 }
 
 /* Переключатель тем: одна кнопка в углу шапки и на карточке входа */

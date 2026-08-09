@@ -315,6 +315,14 @@ LOGIN_STYLE_PATCHES = AUTH_SHELL_PATCHES + [
         "  color: var(--armilen-text-heading);\n",
     ),
     (
+        # Кнопку входа апстрим держит числом в scoped-стилях, поэтому общий
+        # --el-component-size до неё не доходит: она осталась бы 40px рядом с
+        # полями, доросшими до 44. Тач-минимум сайта 44px (DESIGN.md §3), и
+        # поле с кнопкой в одной колонке обязаны совпадать по высоте.
+        "  width: 100%;\n  height: 40px;\n",
+        "  width: 100%;\n  height: 44px;\n",
+    ),
+    (
         "  font-size: 14px;\n  color: #888;\n",
         "  font-size: 14px;\n  color: var(--armilen-text-muted);\n",
     ),
