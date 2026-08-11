@@ -208,11 +208,34 @@ ARMILEN_MAIN = "import '@/styles/style.scss'\nimport '@/styles/armilen.css'\n"
 # доезжал до нового цвета в своём темпе: это и читалось как моргание вразнобой.
 # Наблюдатель ловит смену класса кем угодно, и панельным переключателем, и нашим
 # на странице входа, поэтому лечит оба случая одним правилом.
-THEME_BOOTSTRAP = """
+THEME_BOOTSTRAP = r"""
     <script>
       (function () {
         var KEY = "vueuse-color-scheme";
+        var COOKIE = "theme";
         var root = document.documentElement;
+
+        // Мнение о теме одно на все поверхности проекта и живёт в куке `theme`
+        // на домене .armilen.ru (ADR 0030 в репозитории сайта). localStorage
+        // изолирован по origin, поэтому выбор, сделанный на www, до панели не
+        // доезжал, и панель оставалась единственным местом со своей темой.
+        //
+        // Панельный useDark() из @vueuse/core про куку не знает и читает свой
+        // ключ, поэтому кука не заменяет его, а ведёт: прочитали куку, положили
+        // то же значение в ключ, и оба мнения совпали до монтирования Vue.
+        function scope() {
+          var onSite = /(^|\.)armilen\.ru$/.test(location.hostname);
+          return "; " + (onSite ? "Domain=.armilen.ru; " : "")
+            + "Path=/; Max-Age=31536000; SameSite=Lax"
+            + (location.protocol === "https:" ? "; Secure" : "");
+        }
+        function writeCookie(value) {
+          document.cookie = COOKIE + "=" + value + scope();
+        }
+        function readCookie() {
+          var m = document.cookie.match(/(?:^|;\s*)theme=(dark|light)/);
+          return m ? m[1] : null;
+        }
 
         function prefersDark() {
           return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -222,17 +245,24 @@ THEME_BOOTSTRAP = """
           if (saved === "light") return false;
           return prefersDark();
         }
-        function apply(saved) {
+        function apply() {
+          var cookie = readCookie();
+          var saved = null;
+          try { saved = localStorage.getItem(KEY); } catch (e) {}
+          // Кука старше: она общая, а ключ панели местный
+          if (cookie && cookie !== saved) {
+            try { localStorage.setItem(KEY, cookie); } catch (e) {}
+            saved = cookie;
+          }
           root.classList.toggle("dark", isDark(saved));
         }
 
-        var saved = null;
-        try { saved = localStorage.getItem(KEY); } catch (e) {}
-        apply(saved);
+        apply();
 
         window.armilenToggleTheme = function () {
           var next = root.classList.contains("dark") ? "light" : "dark";
           root.classList.toggle("dark", next === "dark");
+          writeCookie(next);
           try {
             localStorage.setItem(KEY, next);
             // Свою же запись localStorage в этой вкладке не видит никто: событие
@@ -244,8 +274,20 @@ THEME_BOOTSTRAP = """
           } catch (e) {}
         };
 
+        // Кука событий не рассылает, в отличие от localStorage, поэтому вкладка
+        // с панелью узнаёт о смене темы на сайте в момент, когда на неё
+        // смотрят. Живее этого между поддоменами не сделать без общего окна
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden) apply();
+        });
+        window.addEventListener("pageshow", apply);
+
         var pending = null;
         new MutationObserver(function () {
+          // Класс на <html> меняет и наша кнопка, и родной el-switch панели.
+          // Общая кука обязана ехать за обоими, иначе выбор, сделанный
+          // панельным переключателем, останется только в ней самой
+          writeCookie(root.classList.contains("dark") ? "dark" : "light");
           if (pending) return;
           var style = document.createElement("style");
           style.textContent = "*,*::before,*::after{transition:none!important}";
