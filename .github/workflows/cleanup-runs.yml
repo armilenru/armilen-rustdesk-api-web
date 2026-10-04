@@ -1,0 +1,40 @@
+name: Delete old workflow runs
+
+# Список прогонов чистится сам. Упавшие, отменённые и пропущенные живут три
+# дня: этого хватает, чтобы разобраться в причине, а дальше они только
+# заслоняют рабочие. Остальные живут две недели, но пять последних прогонов
+# каждого workflow остаются всегда.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Только показать, что было бы удалено, ничего не удаляя
+        type: boolean
+        default: false
+
+jobs:
+  del_runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Упавшие, отменённые и пропущенные старше трёх дней
+        uses: Mattraks/delete-workflow-runs@0cf693bc9909e5e867ee8f27b813224ba862939c # v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 3
+          keep_minimum_runs: 0
+          delete_run_by_conclusion_pattern: failure,cancelled,skipped,timed_out,startup_failure
+          dry_run: ${{ inputs.dry_run || false }}
+      - name: Все прогоны старше двух недель, кроме пяти последних
+        uses: Mattraks/delete-workflow-runs@0cf693bc9909e5e867ee8f27b813224ba862939c # v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 14
+          keep_minimum_runs: 5
+          dry_run: ${{ inputs.dry_run || false }}
