@@ -101,6 +101,20 @@ jobs:
                   problems.append(f"в форме входа нет {token}")
           if 'type="username"' in login:
               problems.append('вернулся несуществующий type="username"')
+
+          # Кука, которую ставит скрипт, не бывает HttpOnly, а на домене
+          # .armilen.ru её прочтёт страница любого поддомена. Так до 15.10.2026
+          # жил токен входа armilen_token. Скрипту разрешена одна кука, тема:
+          # секрета в ней нет. Токен входа живёт только в localStorage панели
+          import re
+          sources = [pathlib.Path("index.html"), *pathlib.Path("src").rglob("*.js"),
+                     *pathlib.Path("src").rglob("*.vue")]
+          for source in sources:
+              for line in read(source).splitlines():
+                  if re.search(r"document\.cookie\s*=", line) and "COOKIE +" not in line:
+                      problems.append(f"{source}: скрипт пишет куку мимо темы: {line.strip()[:80]}")
+          if "COOKIE = 'theme'" not in read("index.html") and 'COOKIE = "theme"' not in read("index.html"):
+              problems.append("бутстрап темы пишет не куку theme")
           if problems:
               for p in problems: print("НЕ ПРОШЛО:", p, file=sys.stderr)
               sys.exit(1)

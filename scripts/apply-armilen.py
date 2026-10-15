@@ -27,7 +27,6 @@ REGISTER = ROOT / "src/views/register/index.vue"
 # Вход и регистрация это одна оболочка: одинаковые классы, одинаковый логотип,
 # одинаковая пара литералов в фоне. Разные у них только поля формы
 AUTH_PAGES = (LOGIN, REGISTER)
-AUTH = ROOT / "src/utils/auth.js"
 HEADER = ROOT / "src/layout/components/header.vue"
 VIEWS = ROOT / "src/views"
 
@@ -151,38 +150,6 @@ def apply_favicons() -> int:
             changed += 1
     print(f"фавиконки: {changed} файл(ов) обновлено")
     return changed
-
-
-UPSTREAM_SET_TOKEN = """export function setToken (token) {
-  localStorage.setItem(`wc-option:local:access_token`, token)
-  return localStorage.setItem(TokenKey, token)
-}
-
-export function removeToken () {
-  return localStorage.removeItem(TokenKey)
-}"""
-ARMILEN_SET_TOKEN = """// Armilen: SSO поверх входа в панель. Токен кладётся ещё и в куку на домен
-// второго уровня, потому что им закрыты страницы за пределами desk.armilen.ru:
-// /services/cms/manage-reviews и /x-project/logs на www.armilen.ru проверяют
-// её сами, а /webclient и /desk-guide через forward_auth Caddy на
-// server/sso-verify.ts. localStorage сюда не годится, он раздельный на каждый
-// домен, и без куки страницы отбрасывают обратно на этот вход по кругу.
-const ArmilenCookie = 'armilen_token'
-const ArmilenCookieDomain = 'armilen.ru'
-const ArmilenCookieMaxAge = 3600 * 24 * 30
-
-export function setToken (token) {
-  localStorage.setItem(`wc-option:local:access_token`, token)
-  document.cookie = `${ArmilenCookie}=${encodeURIComponent(token)}; Path=/; ` +
-    `Domain=${ArmilenCookieDomain}; Max-Age=${ArmilenCookieMaxAge}; Secure; SameSite=Lax`
-  return localStorage.setItem(TokenKey, token)
-}
-
-export function removeToken () {
-  document.cookie = `${ArmilenCookie}=; Path=/; Domain=${ArmilenCookieDomain}; Max-Age=0`
-  return localStorage.removeItem(TokenKey)
-}"""
-
 APP_STORE = ROOT / "src/store/app.js"
 MAIN = ROOT / "src/main.js"
 
@@ -230,6 +197,7 @@ THEME_BOOTSTRAP = r"""
             + (location.protocol === "https:" ? "; Secure" : "");
         }
         function writeCookie(value) {
+          // websec: кука темы, секрета в ней нет, читать её скрипту по делу
           document.cookie = COOKIE + "=" + value + scope();
         }
         function readCookie() {
@@ -705,27 +673,6 @@ def apply_login_autocomplete() -> int:
     return changed
 
 
-def apply_sso_cookie() -> int:
-    """Кука armilen_token на домен второго уровня при входе в панель.
-
-    Это была правка прежнего форка, и при переходе на тонкий форк она молча
-    потерялась: в новых сборках admin-1…admin-6 куку не ставит никто. Внешне
-    это выглядит как «вход проходит, а внутрь не пускает»: страница проверяет
-    куку, не находит и отправляет обратно на вход, по кругу.
-    """
-    src = AUTH.read_text(encoding="utf-8")
-    if "ArmilenCookie" in src:
-        print("SSO-кука: уже наша")
-        return 0
-    if UPSTREAM_SET_TOKEN not in src:
-        print("ОШИБКА: в utils/auth.js нет ожидаемых setToken/removeToken, "
-              "апстрим изменил код, скрипт надо обновить", file=sys.stderr)
-        raise SystemExit(1)
-    AUTH.write_text(src.replace(UPSTREAM_SET_TOKEN, ARMILEN_SET_TOKEN), encoding="utf-8")
-    print("SSO-кука: добавлена")
-    return 1
-
-
 def apply_login_redirect() -> int:
     """Возврат на сайт после входа вместо падения на /404.
 
@@ -831,7 +778,7 @@ if __name__ == "__main__":
     total = (apply_translations() + apply_title() + apply_favicon_link()
              + apply_favicons() + apply_logo() + apply_theme() + apply_oauth_pages()
              + apply_default_lang()
-             + apply_login_autocomplete() + apply_sso_cookie()
+             + apply_login_autocomplete()
              + apply_login_redirect() + apply_form_labels()
              + apply_settings_headers())
     print("правки Armilen наложены" if total else "правки Armilen уже на месте")
