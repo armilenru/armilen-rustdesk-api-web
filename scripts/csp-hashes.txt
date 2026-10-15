@@ -1,0 +1,7 @@
+# Хеши инлайн-скриптов админки для CSP desk.armilen.ru. Тот же набор стоит в
+# Caddyfile репозитория armilen-site, блок desk.armilen.ru: меняется здесь,
+# меняется и там тем же заходом. Сверяет сборка (build-admin.yml), и сборка с
+# другим набором в релиз не идёт: иначе панель на бою встала бы без скриптов.
+sha256-D+90TV2crM8Ftj7v7Bag8ojFGRtuOC6ttKirxzFobh4= значок вкладки (ARMILEN_ICON)
+sha256-FGlibcLRtZEMfAEjfeOy/Ni8oa9NoPUfV76FpEnAPeU= тема до монтирования Vue (THEME_BOOTSTRAP)
+sha256-MAMia3BevXmJeT6t3Ne9iOCXjjC6w7oh0cz2AfZGoGU= onclick кнопки темы (THEME_TOGGLE_BUTTON), через 'unsafe-hashes'

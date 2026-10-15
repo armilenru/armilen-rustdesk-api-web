@@ -123,6 +123,32 @@ jobs:
 
       - run: npm run build
 
+      # CSP desk.armilen.ru пускает инлайн-скрипты админки только по хешам.
+      # Новый или изменённый скрипт (наш или апстрима) без хеша там остановил
+      # бы панель на бою, поэтому сборка с другим набором в релиз не идёт
+      - name: Сверить хеши инлайн-скриптов для CSP
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, pathlib, re, sys
+          def digest(text):
+              return "sha256-" + base64.b64encode(hashlib.sha256(text.encode()).digest()).decode()
+          html = pathlib.Path("dist/index.html").read_text(encoding="utf-8")
+          found = {digest(m.group(1)) for m in
+                   re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)}
+          for bundle in pathlib.Path("dist").rglob("*.js"):
+              text = bundle.read_text(encoding="utf-8", errors="replace")
+              found |= {digest(v) for v in re.findall(r'onclick(?:=|:)\s*"([^"]+)"', text)}
+          listed = pathlib.Path("scripts/csp-hashes.txt").read_text(encoding="utf-8").splitlines()
+          expected = {line.split()[0] for line in listed if line.strip() and not line.startswith("#")}
+          if found != expected:
+              print("хеши разошлись с scripts/csp-hashes.txt", file=sys.stderr)
+              print("  новые:", sorted(found - expected), file=sys.stderr)
+              print("  пропавшие:", sorted(expected - found), file=sys.stderr)
+              print("поправить файл и CSP desk.armilen.ru в Caddyfile armilen-site", file=sys.stderr)
+              sys.exit(1)
+          print(f"хеши инлайн-скриптов: {len(found)}, совпали")
+          PY
+
       - name: Собрать артефакт для VPS
         run: tar -C dist -czf armilen-admin-dist.tgz .
 
