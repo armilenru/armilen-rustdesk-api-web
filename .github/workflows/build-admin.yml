@@ -18,7 +18,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Действия actions/* остаются на тегах, сторонние закреплены хешем
     steps:
+      # nosemgrep: github-actions-mutable-action-tag
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -32,6 +34,7 @@ jobs:
           git fetch upstream master
           git -c user.email=ci@armilen.ru -c user.name=armilen-ci merge --no-edit upstream/master
 
+      # nosemgrep: github-actions-mutable-action-tag
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -171,7 +174,8 @@ jobs:
       # Тот же способ доставки, что у rustdesk-api: VPS скачивает ассет
       # последнего релиза, а не собирает Vue у себя на проде
       - name: Опубликовать релиз
-        uses: softprops/action-gh-release@v2
+        # Стороннее действие с правом записи в репозиторий: только хешем
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ steps.tag.outputs.value }}
           name: Админка Armilen ${{ steps.tag.outputs.value }}
